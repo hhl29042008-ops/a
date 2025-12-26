@@ -94,12 +94,3 @@ w.DescendantAdded:Connect(function(v)
             v.Transparency = 1
         end)
     end)
-for _, v in next, game:GetService("ReplicatedStorage").Effect.Container:GetChildren() do
-            if v.Name == "Death" or v.Name == "Respawn" or v.Name == "LevelUp" or v.Name == "Slash" or v.Name == "Wind" or v.Name == "FireExplosion" then
-                if typeof(require(v)) == "function" then
-                    hookfunction(require(v), function(self, ...)
-                            return nil
-                    end)
-                end
-            end
-        end
