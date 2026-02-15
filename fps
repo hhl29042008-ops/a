@@ -94,3 +94,101 @@ w.DescendantAdded:Connect(function(v)
             v.Transparency = 1
         end)
     end)
+
+-- ===============================
+-- FAST MODE + DISABLE VFX
+-- ===============================
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+-- ========= FAST MODE =========
+local function EnableFastMode()
+    if _G.FastMode then return end
+
+    _G.FastMode = true
+    _G.reducing = true
+    _G.FastModeCache = {}
+
+    local Map = workspace:WaitForChild("Map")
+    local Unloaded = ReplicatedStorage:WaitForChild("Unloaded")
+    local SmoothPlastic = Enum.Material.SmoothPlastic
+
+    local function optimize(descendants)
+        local start = os.clock()
+        for _, obj in ipairs(descendants) do
+            if obj:IsA("BasePart") then
+                _G.FastModeCache[obj] = obj.Material
+                obj.Material = SmoothPlastic
+            elseif obj:IsA("Texture") and not obj:GetAttribute("Offset") then
+                obj:Destroy()
+            end
+
+            if os.clock() - start > 0.008 then
+                task.wait()
+                start = os.clock()
+            end
+        end
+    end
+
+    optimize(Map:GetDescendants())
+    optimize(Unloaded:GetDescendants())
+
+    local Optimizer = LocalPlayer.PlayerScripts:FindFirstChild("OptimizerClientActor")
+    if Optimizer and Optimizer.SendMessage then
+        Optimizer:SendMessage("Optimize", true)
+    end
+
+    warn("⚡ FastMode ENABLED")
+end
+
+-- ========= DISABLE ALLY VFX =========
+local function DisableVFX()
+    LocalPlayer:SetAttribute("DisableAllyEffects", true)
+    warn("❌ Ally VFX DISABLED")
+end
+
+-- ========= DISABLE CAMERA SHAKE =========
+local function DisableCameraShake()
+    pcall(function()
+        local cs1 = require(ReplicatedStorage.Util.CameraShake)
+        if cs1.SetEnabled then
+            cs1:SetEnabled(false)
+        end
+    end)
+
+    pcall(function()
+        local cs2 = require(ReplicatedStorage.Util.CameraShaker)
+        if cs2.SetEnabled then
+            cs2:SetEnabled(false)
+        end
+    end)
+
+    pcall(function()
+        ReplicatedStorage.Remotes.ChangeSetting:FireServer("CameraShake", false)
+    end)
+
+    warn("❌ CameraShake DISABLED")
+end
+
+-- ========= DISABLE BACKGROUND MUSIC =========
+local function DisableMusic()
+    pcall(function()
+        game.ReplicatedStorage.Events.ToggleMusic.Event:Fire(true)
+    end)
+
+    for _, s in pairs(workspace._WorldOrigin.Sounds.Locations:GetChildren()) do
+        if s:IsA("Sound") then
+            s:Pause()
+        end
+    end
+
+    warn("🔇 Background Music DISABLED")
+end
+
+-- ========= RUN ALL =========
+EnableFastMode()
+DisableVFX()
+DisableCameraShake()
+DisableMusic()
