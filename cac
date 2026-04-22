@@ -1,6 +1,3 @@
-repeat
-        wait()
-    until game.Players.LocalPlayer.Character
 
 -- BOOST.lua â€” Automation optimizer (no collectgarbage)
 -- ThÃªm tÃ­nh nÄƒng: hide geometry (Ä‘áº·t Transparency = 1) Ä‘á»ƒ "tÃ ng hÃ¬nh" má»i part
