@@ -14,15 +14,15 @@ local CFG = {
     geometry      = true,   -- <-- áº¨N Háº¾T BasePart/MeshPart/UnionOperation (Transparency = 1)
     castShadowOff = true,   -- táº¯t Ä‘á»• bÃ³ng luÃ´n cho cháº¯c
     reflectance0  = true,   -- Ä‘áº·t Reflectance = 0
-    materialPlastic = true,-- náº¿u muá»‘n thÃ¬ chuyá»ƒn vá» Plastic (Ä‘á»ƒ debug báº­t render váº«n nháº¹)
-    includeCharacter = true,-- true náº¿u muá»‘n áº©n cáº£ nhÃ¢n váº­t cá»§a báº¡n
+    materialPlastic = false,-- náº¿u muá»‘n thÃ¬ chuyá»ƒn vá» Plastic (Ä‘á»ƒ debug báº­t render váº«n nháº¹)
+    includeCharacter = false,-- true náº¿u muá»‘n áº©n cáº£ nhÃ¢n váº­t cá»§a báº¡n
   },
   kill = {
     particles     = true,   -- ParticleEmitter/Trail/Beam/Fire/Smoke/Sparkles
     lights        = true,   -- PointLight/SpotLight/SurfaceLight
     decals        = true,   -- Decal/Texture/SurfaceAppearance
     ui3d          = true,   -- BillboardGui/SurfaceGui
-    prompts       = true,  -- ProximityPrompt (true náº¿u bot khÃ´ng cáº§n)
+    prompts       = fa;se,  -- ProximityPrompt (true náº¿u bot khÃ´ng cáº§n)
     highlights    = true,   -- Highlight
     clothes       = true,   -- Shirt/Pants/ShirtGraphic
     accessories   = true,   -- Accessory trÃªn nhÃ¢n váº­t
