@@ -14,8 +14,8 @@ local CFG = {
     geometry      = true,   -- <-- áº¨N Háº¾T BasePart/MeshPart/UnionOperation (Transparency = 1)
     castShadowOff = true,   -- táº¯t Ä‘á»• bÃ³ng luÃ´n cho cháº¯c
     reflectance0  = true,   -- Ä‘áº·t Reflectance = 0
-    materialPlastic = false,-- náº¿u muá»‘n thÃ¬ chuyá»ƒn vá» Plastic (Ä‘á»ƒ debug báº­t render váº«n nháº¹)
-    includeCharacter = false,-- true náº¿u muá»‘n áº©n cáº£ nhÃ¢n váº­t cá»§a báº¡n
+    materialPlastic = true,-- náº¿u muá»‘n thÃ¬ chuyá»ƒn vá» Plastic (Ä‘á»ƒ debug báº­t render váº«n nháº¹)
+    includeCharacter = true,-- true náº¿u muá»‘n áº©n cáº£ nhÃ¢n váº­t cá»§a báº¡n
   },
   kill = {
     particles     = true,   -- ParticleEmitter/Trail/Beam/Fire/Smoke/Sparkles
