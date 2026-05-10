@@ -11,7 +11,7 @@ local CFG = {
   postFXOff       = true,   -- táº¯t Blur/SunRays/ColorCorrection/Bloom/DoF
   zeroWater       = true,   -- táº¯t hiá»‡u á»©ng nÆ°á»›c (vÃ  lÃ m nÆ°á»›c trong suá»‘t)
   hide = {
-    geometry      = true,   -- <-- áº¨N Háº¾T BasePart/MeshPart/UnionOperation (Transparency = 1)
+    geometry      = false,   -- <-- áº¨N Háº¾T BasePart/MeshPart/UnionOperation (Transparency = 1)
     castShadowOff = true,   -- táº¯t Ä‘á»• bÃ³ng luÃ´n cho cháº¯c
     reflectance0  = true,   -- Ä‘áº·t Reflectance = 0
     materialPlastic = true,-- náº¿u muá»‘n thÃ¬ chuyá»ƒn vá» Plastic (Ä‘á»ƒ debug báº­t render váº«n nháº¹)
