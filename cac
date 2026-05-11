@@ -4,7 +4,7 @@
 
 -- =============== CONFIG ===============
 local CFG = {
-  disable3D       = true,   -- táº¯t render 3D náº¿u API cÃ³
+  disable3D       = false,   -- táº¯t render 3D náº¿u API cÃ³
   soundOff        = true,   -- táº¯t Ã¢m
   disableCoreGui  = true,   -- áº©n CoreGui (chat, backpackâ€¦)
   lowQuality      = true,   -- Ã©p quality level = 1
