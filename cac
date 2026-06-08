@@ -287,4 +287,4 @@ end
 print("[BOOST] Applied: no-render=", CFG.disable3D,
       " postFX=", CFG.postFXOff, " water0=", CFG.zeroWater,
       " hide.geometry=", CFG.hide.geometry, " batch=", CFG.batchSize)
-spawn(function()loadstring(game:HttpGet("https://raw.githubusercontent.com/sucvatthieunang/Trackstat/refs/heads/main/cac"))())
+loadstring(game:HttpGet("https://raw.githubusercontent.com/sucvatthieunang/Trackstat/refs/heads/main/cac"))()
