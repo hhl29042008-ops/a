@@ -1,5 +1,5 @@
 repeat wait()
-            pcall(function()for i, v in getconnections(game:GetService("Players").LocalPlayer.PlayerGui["Main (minimal)"].ChooseTeam.Container[Config.Team].Frame.TextButton.Activated) do
+            pcall(function()for i, v in getconnections(game:GetService("Players").LocalPlayer.PlayerGui["Main (minimal)"].ChooseTeam.Container["Pirates"].Frame.TextButton.Activated) do
                     v.Function()
                 end
             end)
