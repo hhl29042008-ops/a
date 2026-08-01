@@ -1,194 +1,541 @@
-repeat task.wait() until game:IsLoaded()
-if not game:IsLoaded() then game:IsLoaded():Wait(5) end
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
+Lighting.GlobalShadows = false
+Lighting.FogEnd = 9e9
+Lighting.Brightness = 0
+Lighting.ClockTime = 12
+Lighting.OutdoorAmbient = Color3.fromRGB(85, 85, 90) -- Xám trầm dịu mắt
+Lighting.Ambient = Color3.fromRGB(85, 85, 90)
 
-
-local Initialize = function()
-	UserInputService.WindowFocusReleased:Connect(WindowFocusReleasedFunction)
-	UserInputService.WindowFocused:Connect(WindowFocusedFunction)
-	return
-end
-Initialize()
-UserSettings():GetService("UserGameSettings").MasterVolume = 0
-local decalsyeeted = true
-local g = game
-local w = g.Workspace
-local l = g.Lighting
-local t = w.Terrain
-sethiddenproperty(l,"Technology",2)
-sethiddenproperty(t,"Decoration",false)
-t.WaterWaveSize = 0
-t.WaterWaveSpeed = 0
-t.WaterReflectance = 0
-t.WaterTransparency = 0
-l.GlobalShadows = 0
-l.FogEnd = 9e9
-l.Brightness = 0
-settings().Rendering.QualityLevel = "Level01"
-for i, v in pairs(w:GetDescendants()) do
-    if v:IsA("BasePart") and not v:IsA("MeshPart") then
-        v.Material = "Plastic"
-        v.Reflectance = 0
-    elseif (v:IsA("Decal") or v:IsA("Texture")) and decalsyeeted then
-        v.Transparency = 1
-    elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-        v.Lifetime = NumberRange.new(0)
-    elseif v:IsA("Explosion") then
-        v.BlastPressure = 1
-        v.BlastRadius = 1
-    elseif v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then
-        v.Enabled = false
-    elseif v:IsA("MeshPart") and decalsyeeted then
-        v.Material = "Plastic"
-        v.Reflectance = 0
-        v.TextureID = 10385902758728957
-    elseif v:IsA("SpecialMesh") and decalsyeeted  then
-        v.TextureId=0
-    elseif v:IsA("ShirtGraphic") and decalsyeeted then
-        v.Graphic=1
-    elseif (v:IsA("Shirt") or v:IsA("Pants")) and decalsyeeted then
-        v[v.ClassName.."Template"]=1
+for _, v in pairs(Lighting:GetChildren()) do
+    if v:IsA("PostEffect") or v:IsA("Sky") or v:IsA("Atmosphere") or v:IsA("SunRaysEffect") or v:IsA("BloomEffect") then
+        v:Destroy()
     end
 end
-for i = 1,#l:GetChildren() do
-    e=l:GetChildren()[i]
-    if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") then
-        e.Enabled = false
+
+local function OptimizePart(part)
+    if part:IsA("BasePart") then
+        part.Material = Enum.Material.SmoothPlastic
+        part.Reflectance = 0
+        part.CastShadow = false
+        part.Color = Color3.fromRGB(100, 100, 105)
+    elseif part:IsA("MeshPart") then
+        part.Material = Enum.Material.SmoothPlastic
+        part.Reflectance = 0
+        part.TextureID = "" -- Nuke texture của Mesh
+        part.Color = Color3.fromRGB(100, 100, 105)
+    elseif part:IsA("Decal") or part:IsA("Texture") or part:IsA("ParticleEmitter") or part:IsA("Trail") or part:IsA("Fire") or part:IsA("Smoke") or part:IsA("Sparkles") or part:IsA("Beam") then
+        part:Destroy() -- Xóa vĩnh viễn các hạt hiệu ứng chiêu thức/trái ác quỷ
     end
 end
-w.DescendantAdded:Connect(function(v)
-   if v:IsA("BasePart") and not v:IsA("MeshPart") then
-        v.Material = "Plastic"
-        v.Reflectance = 0
-    elseif v:IsA("Decal") or v:IsA("Texture") and decalsyeeted then
-        v.Transparency = 1
-    elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-        v.Lifetime = NumberRange.new(0)
-    elseif v:IsA("Explosion") then
-        v.BlastPressure = 1
-        v.BlastRadius = 1
-    elseif v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then
-        v.Enabled = false
-    elseif v:IsA("MeshPart") and decalsyeeted then
-        v.Material = "Plastic"
-        v.Reflectance = 0
-        v.TextureID = 10385902758728957
-    elseif v:IsA("SpecialMesh") and decalsyeeted then
-        v.TextureId=0
-    elseif v:IsA("ShirtGraphic") and decalsyeeted then
-        v.ShirtGraphic=1
-    elseif (v:IsA("Shirt") or v:IsA("Pants")) and decalsyeeted then
-        v[v.ClassName.."Template"]=1
-            end
-        end)
 
-  for i, v in next, workspace:GetDescendants() do
-        pcall(function()
-            v.Transparency = 1
-        end)
-    end  
-    a = workspace
-    a.DescendantAdded:Connect(function(v)
-        pcall(function()
-            v.Transparency = 1
-        end)
+local descendants = Workspace:GetDescendants()
+for i, v in ipairs(descendants) do
+    OptimizePart(v)
+    if i % 1000 == 0 then task.wait() end -- Cứ 1000 part thì nghỉ 1 nhịp, chống văng game
+end
+
+Workspace.DescendantAdded:Connect(function(v)
+    task.spawn(function()
+        OptimizePart(v)
     end)
+end)
 
--- ===============================
--- FAST MODE + DISABLE VFX
--- ===============================
+local function StopAnimations(char)
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum then
+        for _, anim in pairs(hum:GetPlayingAnimationTracks()) do
+            anim:Stop()
+        end
+        hum.AnimationPlayed:Connect(function(anim)
+            anim:Stop()
+        end)
+    end
+end
 
+for _, player in pairs(Players:GetPlayers()) do
+    if player.Character then StopAnimations(player.Character) end
+    player.CharacterAdded:Connect(StopAnimations)
+end
+
+Workspace.ChildAdded:Connect(function(child)
+    if child:FindFirstChildOfClass("Humanoid") then
+        task.wait(0.1)
+        StopAnimations(child)
+    end
+end)
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+
 local LocalPlayer = Players.LocalPlayer
 
--- ========= FAST MODE =========
-local function EnableFastMode()
-    if _G.FastMode then return end
+if not LocalPlayer then
+    warn("LowGraphics phải được chạy bằng LocalScript.")
+    return
+end
 
-    _G.FastMode = true
-    _G.reducing = true
-    _G.FastModeCache = {}
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Terrain = Workspace:FindFirstChildOfClass("Terrain")
 
-    local Map = workspace:WaitForChild("Map")
-    local Unloaded = ReplicatedStorage:WaitForChild("Unloaded")
-    local SmoothPlastic = Enum.Material.SmoothPlastic
+local CONFIG = {
+    -- Màu xám của map, nhân vật và vật thể.
+    GrayColor = Color3.fromRGB(105, 105, 110),
 
-    local function optimize(descendants)
-        local start = os.clock()
-        for _, obj in ipairs(descendants) do
-            if obj:IsA("BasePart") then
-                _G.FastModeCache[obj] = obj.Material
-                obj.Material = SmoothPlastic
-            elseif obj:IsA("Texture") and not obj:GetAttribute("Offset") then
-                obj:Destroy()
+    -- Số lượng Instance xử lý trong một lượt.
+    -- Máy yếu: 100–180
+    -- Máy trung bình: 180–300
+    -- Máy mạnh: 300–400
+    BatchSize = 100,
+
+    -- Thời gian nghỉ giữa mỗi lượt xử lý.
+    BatchDelay = 0.1,
+
+    -- Xóa hình ảnh texture bằng cách làm trong suốt.
+    RemoveTextures = true,
+
+    -- Tắt ParticleEmitter, Trail, Beam, Fire...
+    DisableEffects = true,
+
+    -- Tắt PointLight, SpotLight, SurfaceLight.
+    DisableLights = true,
+
+    -- Dừng animation hiển thị.
+    -- Không Anchor nhân vật và không sửa Humanoid.
+    StopAnimations = true,
+
+    -- Tắt BillboardGui và SurfaceGui trong thế giới 3D.
+    -- Bao gồm thanh máu NPC, tên NPC, damage number...
+    DisableWorldGui = true,
+
+    -- Làm xám và hơi mờ ImageLabel/ImageButton.
+    FadeUIImages = true,
+
+    -- 0 = không mờ, 1 = biến mất hoàn toàn.
+    UIImageTransparency = 1,
+
+    -- Ẩn ViewportFrame và VideoFrame trong giao diện.
+    HideViewportAndVideo = true,
+
+    -- Bao lâu kiểm tra lại effect đã bị game bật lên.
+    EffectRecheckInterval = 1,
+}
+
+-- =========================================================
+-- GÁN PROPERTY AN TOÀN
+-- =========================================================
+
+local function safeSet(object, property, value)
+    if not object then
+        return false
+    end
+
+    local success = pcall(function()
+        object[property] = value
+    end)
+
+    return success
+end
+
+-- =========================================================
+-- CACHE YẾU
+--
+-- Instance đã bị xóa khỏi game có thể tự rời khỏi cache,
+-- tránh giữ tham chiếu làm RAM tăng dần.
+-- =========================================================
+
+local processedCache = setmetatable({}, {
+    __mode = "k",
+})
+
+local queuedCache = setmetatable({}, {
+    __mode = "k",
+})
+
+local effectCache = setmetatable({}, {
+    __mode = "k",
+})
+
+local animatorCache = setmetatable({}, {
+    __mode = "k",
+})
+
+-- =========================================================
+-- HÀNG ĐỢI KHÔNG TRÙNG
+-- =========================================================
+
+local queue = {}
+local queueHead = 1
+local queueTail = 0
+
+local function enqueue(object)
+    if typeof(object) ~= "Instance" then
+        return
+    end
+
+    if processedCache[object] then
+        return
+    end
+
+    if queuedCache[object] then
+        return
+    end
+
+    queuedCache[object] = true
+
+    queueTail += 1
+    queue[queueTail] = object
+end
+
+-- =========================================================
+-- LIGHTING
+-- =========================================================
+
+safeSet(Lighting, "GlobalShadows", false)
+safeSet(Lighting, "Brightness", 0)
+safeSet(Lighting, "ClockTime", 12)
+safeSet(Lighting, "FogStart", 0)
+safeSet(Lighting, "FogEnd", 1000000)
+
+safeSet(Lighting, "Ambient", CONFIG.GrayColor)
+safeSet(Lighting, "OutdoorAmbient", CONFIG.GrayColor)
+
+safeSet(Lighting, "EnvironmentDiffuseScale", 0)
+safeSet(Lighting, "EnvironmentSpecularScale", 0)
+
+-- =========================================================
+-- TERRAIN VÀ NƯỚC
+-- =========================================================
+
+if Terrain then
+    safeSet(Terrain, "WaterWaveSize", 0)
+    safeSet(Terrain, "WaterWaveSpeed", 0)
+    safeSet(Terrain, "WaterReflectance", 0)
+    safeSet(Terrain, "WaterTransparency", 1)
+end
+
+-- =========================================================
+-- TẮT EFFECT
+--
+-- Chỉ dùng Enabled = false và Clear().
+-- Không Destroy nên không gây lỗi:
+-- "tried to set the parent ... to NULL"
+-- =========================================================
+
+local function disableEffect(object)
+    if typeof(object) ~= "Instance" then
+        return
+    end
+
+    if not object.Parent then
+        return
+    end
+
+    if object:IsA("ParticleEmitter") then
+        safeSet(object, "Enabled", false)
+        safeSet(object, "Rate", 0)
+
+        pcall(function()
+            object:Clear()
+        end)
+
+    elseif object:IsA("Trail") then
+        safeSet(object, "Enabled", false)
+
+        pcall(function()
+            object:Clear()
+        end)
+
+    elseif object:IsA("Beam") then
+        safeSet(object, "Enabled", false)
+
+    elseif object:IsA("Fire")
+        or object:IsA("Smoke")
+        or object:IsA("Sparkles") then
+
+        safeSet(object, "Enabled", false)
+
+    elseif object:IsA("Highlight") then
+        safeSet(object, "Enabled", false)
+    end
+end
+
+local function registerEffect(object)
+    effectCache[object] = true
+    disableEffect(object)
+end
+
+-- =========================================================
+-- DỪNG ANIMATION
+--
+-- Mỗi Animator chỉ tạo một kết nối duy nhất.
+-- =========================================================
+
+local function optimizeAnimator(animator)
+    if not CONFIG.StopAnimations then
+        return
+    end
+
+    if animatorCache[animator] then
+        return
+    end
+
+    animatorCache[animator] = true
+
+    pcall(function()
+        local tracks = animator:GetPlayingAnimationTracks()
+
+        for _, track in ipairs(tracks) do
+            track:Stop(0)
+        end
+    end)
+
+    animator.AnimationPlayed:Connect(function(track)
+        pcall(function()
+            track:Stop(0)
+        end)
+    end)
+end
+
+-- =========================================================
+-- TỐI ƯU VẬT THỂ
+-- =========================================================
+
+local function optimizeBasePart(object)
+    safeSet(object, "Material", Enum.Material.SmoothPlastic)
+    safeSet(object, "Color", CONFIG.GrayColor)
+    safeSet(object, "CastShadow", false)
+    safeSet(object, "Reflectance", 0)
+
+    -- Giúp UnionOperation/SolidModel nhận màu của part.
+    if object:IsA("PartOperation") then
+        safeSet(object, "UsePartColor", true)
+    end
+end
+
+local function optimizeObject(object)
+    if processedCache[object] then
+        return
+    end
+
+    processedCache[object] = true
+
+    -- MeshPart phải kiểm tra trước BasePart,
+    -- vì MeshPart cũng là một BasePart.
+    if object:IsA("MeshPart") then
+        optimizeBasePart(object)
+
+        if CONFIG.RemoveTextures then
+            safeSet(object, "TextureID", "")
+        end
+
+        -- Không chỉnh RenderFidelity tại đây.
+        -- RenderFidelity không được thay đổi trong Run-Time.
+
+    elseif object:IsA("BasePart") then
+        optimizeBasePart(object)
+
+    elseif object:IsA("Decal")
+        or object:IsA("Texture") then
+
+        if CONFIG.RemoveTextures then
+            safeSet(object, "Transparency", 1)
+        end
+
+    elseif object:IsA("SurfaceAppearance") then
+        if CONFIG.RemoveTextures then
+            safeSet(object, "ColorMap", "")
+            safeSet(object, "NormalMap", "")
+            safeSet(object, "MetalnessMap", "")
+            safeSet(object, "RoughnessMap", "")
+        end
+
+    elseif object:IsA("SpecialMesh") then
+        if CONFIG.RemoveTextures then
+            safeSet(object, "TextureId", "")
+        end
+
+    elseif object:IsA("ParticleEmitter")
+        or object:IsA("Trail")
+        or object:IsA("Beam")
+        or object:IsA("Fire")
+        or object:IsA("Smoke")
+        or object:IsA("Sparkles")
+        or object:IsA("Highlight") then
+
+        if CONFIG.DisableEffects then
+            registerEffect(object)
+        end
+
+    elseif object:IsA("Light") then
+        if CONFIG.DisableLights then
+            safeSet(object, "Enabled", false)
+            safeSet(object, "Shadows", false)
+        end
+
+    elseif object:IsA("PostEffect") then
+        -- Bao gồm:
+        -- BloomEffect
+        -- BlurEffect
+        -- SunRaysEffect
+        -- DepthOfFieldEffect
+        -- ColorCorrectionEffect
+        safeSet(object, "Enabled", false)
+
+    elseif object:IsA("Atmosphere") then
+        safeSet(object, "Density", 0)
+        safeSet(object, "Haze", 0)
+        safeSet(object, "Glare", 0)
+
+    elseif object:IsA("Sky") then
+        safeSet(object, "CelestialBodiesShown", false)
+        safeSet(object, "StarCount", 0)
+
+        if CONFIG.RemoveTextures then
+            safeSet(object, "SkyboxBk", "")
+            safeSet(object, "SkyboxDn", "")
+            safeSet(object, "SkyboxFt", "")
+            safeSet(object, "SkyboxLf", "")
+            safeSet(object, "SkyboxRt", "")
+            safeSet(object, "SkyboxUp", "")
+        end
+
+    elseif object:IsA("Animator") then
+        optimizeAnimator(object)
+
+    elseif object:IsA("BillboardGui")
+        or object:IsA("SurfaceGui") then
+
+        if CONFIG.DisableWorldGui then
+            safeSet(object, "Enabled", false)
+        end
+
+    elseif object:IsA("ImageLabel")
+        or object:IsA("ImageButton") then
+
+        if CONFIG.FadeUIImages then
+            pcall(function()
+                object.ImageColor3 = CONFIG.GrayColor
+
+                object.ImageTransparency = math.max(
+                    object.ImageTransparency,
+                    CONFIG.UIImageTransparency
+                )
+            end)
+        end
+
+    elseif object:IsA("UIGradient")
+        or object:IsA("UIStroke") then
+
+        if CONFIG.FadeUIImages then
+            safeSet(object, "Enabled", false)
+        end
+
+    elseif object:IsA("ViewportFrame")
+        or object:IsA("VideoFrame") then
+
+        if CONFIG.HideViewportAndVideo then
+            safeSet(object, "Visible", false)
+        end
+    end
+end
+
+-- =========================================================
+-- ĐƯA CHILDREN VÀO HÀNG ĐỢI
+--
+-- Không dùng Workspace:GetDescendants() để tránh tạo một
+-- bảng rất lớn ngay lập tức.
+-- =========================================================
+
+local function enqueueChildren(object)
+    local success, children = pcall(function()
+        return object:GetChildren()
+    end)
+
+    if not success then
+        return
+    end
+
+    for _, child in ipairs(children) do
+        enqueue(child)
+    end
+end
+
+-- Kết nối trước khi bắt đầu quét để không bỏ sót vật thể mới.
+Workspace.DescendantAdded:Connect(function(object)
+    enqueue(object)
+end)
+
+Lighting.DescendantAdded:Connect(function(object)
+    enqueue(object)
+end)
+
+PlayerGui.DescendantAdded:Connect(function(object)
+    enqueue(object)
+end)
+
+-- Chỉ thêm ba root ban đầu.
+-- Worker sẽ tự đi xuống từng nhánh.
+enqueue(Workspace)
+enqueue(Lighting)
+enqueue(PlayerGui)
+
+-- =========================================================
+-- WORKER XỬ LÝ HÀNG ĐỢI
+--
+-- Chỉ có một worker, không spawn cho từng vật thể.
+-- =========================================================
+
+task.spawn(function()
+    while true do
+        local amountProcessed = 0
+
+        while queueHead <= queueTail
+            and amountProcessed < CONFIG.BatchSize do
+
+            local object = queue[queueHead]
+
+            queue[queueHead] = nil
+            queueHead += 1
+            amountProcessed += 1
+
+            if object then
+                queuedCache[object] = nil
+
+                if object.Parent then
+                    -- Đưa con của object vào hàng đợi trước.
+                    enqueueChildren(object)
+
+                    -- Sau đó tối ưu object hiện tại.
+                    optimizeObject(object)
+                end
             end
+        end
 
-            if os.clock() - start > 0.008 then
-                task.wait()
-                start = os.clock()
+        -- Hàng đợi đã xử lý xong thì tạo bảng mới,
+        -- không giữ lại các ô cũ trong RAM.
+        if queueHead > queueTail then
+            queue = {}
+            queueHead = 1
+            queueTail = 0
+        end
+
+        task.wait(CONFIG.BatchDelay)
+    end
+end)
+
+-- =========================================================
+-- TẮT LẠI EFFECT BỊ GAME BẬT LÊN
+--
+-- Chỉ duyệt effectCache, không quét toàn bộ Workspace.
+-- =========================================================
+
+task.spawn(function()
+    while task.wait(CONFIG.EffectRecheckInterval) do
+        for effect in pairs(effectCache) do
+            if effect.Parent then
+                disableEffect(effect)
+            else
+                effectCache[effect] = nil
             end
         end
     end
-
-    optimize(Map:GetDescendants())
-    optimize(Unloaded:GetDescendants())
-
-    local Optimizer = LocalPlayer.PlayerScripts:FindFirstChild("OptimizerClientActor")
-    if Optimizer and Optimizer.SendMessage then
-        Optimizer:SendMessage("Optimize", true)
-    end
-
-    warn("⚡ FastMode ENABLED")
-end
-
--- ========= DISABLE ALLY VFX =========
-local function DisableVFX()
-    LocalPlayer:SetAttribute("DisableAllyEffects", true)
-    warn("❌ Ally VFX DISABLED")
-end
-
--- ========= DISABLE CAMERA SHAKE =========
-local function DisableCameraShake()
-    pcall(function()
-        local cs1 = require(ReplicatedStorage.Util.CameraShake)
-        if cs1.SetEnabled then
-            cs1:SetEnabled(false)
-        end
-    end)
-
-    pcall(function()
-        local cs2 = require(ReplicatedStorage.Util.CameraShaker)
-        if cs2.SetEnabled then
-            cs2:SetEnabled(false)
-        end
-    end)
-
-    pcall(function()
-        ReplicatedStorage.Remotes.ChangeSetting:FireServer("CameraShake", false)
-    end)
-
-    warn("❌ CameraShake DISABLED")
-end
-
--- ========= DISABLE BACKGROUND MUSIC =========
-local function DisableMusic()
-    pcall(function()
-        game.ReplicatedStorage.Events.ToggleMusic.Event:Fire(true)
-    end)
-
-    for _, s in pairs(workspace._WorldOrigin.Sounds.Locations:GetChildren()) do
-        if s:IsA("Sound") then
-            s:Pause()
-        end
-    end
-
-    warn("🔇 Background Music DISABLED")
-end
-
--- ========= RUN ALL =========
-EnableFastMode()
-DisableVFX()
-DisableCameraShake()
-DisableMusic()
+end)
