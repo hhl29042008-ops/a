@@ -1,83 +1,78 @@
-if not game:IsLoaded() then game:IsLoaded():Wait(5) end
-local UserInputService = game:GetService("UserInputService")
+local G = (getgenv and getgenv()) or _G
+local old = G.UltraLightFpsBoost
+if old then
+    old.Active = false
+    for _, c in ipairs(old.Connections) do pcall(function() c:Disconnect() end) end
+end
+
+local state = {Active = true, Connections = {}}
+G.UltraLightFpsBoost = state
+
 local RunService = game:GetService("RunService")
+pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
+pcall(function() game:GetService("SoundService").Volume = 0 end)
+pcall(function() game:GetService("SoundService").AmbientReverb = Enum.ReverbType.NoReverb end)
 
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local gray = Color3.fromRGB(112, 112, 112)
+local changed = 0
 
-local Initialize = function()
-	UserInputService.WindowFocusReleased:Connect(WindowFocusReleasedFunction)
-	UserInputService.WindowFocused:Connect(WindowFocusedFunction)
-	return
-end
-Initialize()
-UserSettings():GetService("UserGameSettings").MasterVolume = 0
-local decalsyeeted = true
-local g = game
-local w = g.Workspace
-local l = g.Lighting
-local t = w.Terrain
-sethiddenproperty(l,"Technology",2)
-sethiddenproperty(t,"Decoration",false)
-t.WaterWaveSize = 0
-t.WaterWaveSpeed = 0
-t.WaterReflectance = 0
-t.WaterTransparency = 0
-l.GlobalShadows = 0
-l.FogEnd = 9e9
-l.Brightness = 0
-settings().Rendering.QualityLevel = "Level01"
-for i, v in pairs(w:GetDescendants()) do
-    if v:IsA("BasePart") and not v:IsA("MeshPart") then
-        v.Material = "Plastic"
-        v.Reflectance = 0
-    elseif (v:IsA("Decal") or v:IsA("Texture")) and decalsyeeted then
-        v.Transparency = 1
+local function reduce(v)
+    if v:IsA("BasePart") then
+        v.CastShadow, v.Reflectance, v.Material, v.Color, v.LocalTransparencyModifier = false, 0, Enum.Material.SmoothPlastic, gray, 1
+        if v:IsA("MeshPart") then v.TextureID = "" end
     elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-        v.Lifetime = NumberRange.new(0)
-    elseif v:IsA("Explosion") then
-        v.BlastPressure = 1
-        v.BlastRadius = 1
-    elseif v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then
         v.Enabled = false
-    elseif v:IsA("MeshPart") and decalsyeeted then
-        v.Material = "Plastic"
-        v.Reflectance = 0
-        v.TextureID = 10385902758728957
-    elseif v:IsA("SpecialMesh") and decalsyeeted  then
-        v.TextureId=0
-    elseif v:IsA("ShirtGraphic") and decalsyeeted then
-        v.Graphic=1
-    elseif (v:IsA("Shirt") or v:IsA("Pants")) and decalsyeeted then
-        v[v.ClassName.."Template"]=1
-    end
-end
-for i = 1,#l:GetChildren() do
-    e=l:GetChildren()[i]
-    if e:IsA("BlurEffect") or e:IsA("SunRaysEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("BloomEffect") or e:IsA("DepthOfFieldEffect") then
-        e.Enabled = false
-    end
-end
-w.DescendantAdded:Connect(function(v)
-   if v:IsA("BasePart") and not v:IsA("MeshPart") then
-        v.Material = "Plastic"
-        v.Reflectance = 0
-    elseif v:IsA("Decal") or v:IsA("Texture") and decalsyeeted then
+        v:Clear()
+    elseif v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") or v:IsA("Light") or v:IsA("Highlight") or v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
+        v.Enabled = false
+    elseif v:IsA("PostEffect") then
+        if v.Name ~= "UltraLightGray" then v.Enabled = false end
+    elseif v:IsA("Decal") or v:IsA("Texture") then
         v.Transparency = 1
-    elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-        v.Lifetime = NumberRange.new(0)
-    elseif v:IsA("Explosion") then
-        v.BlastPressure = 1
-        v.BlastRadius = 1
-    elseif v:IsA("Fire") or v:IsA("SpotLight") or v:IsA("Smoke") or v:IsA("Sparkles") then
-        v.Enabled = false
-    elseif v:IsA("MeshPart") and decalsyeeted then
-        v.Material = "Plastic"
-        v.Reflectance = 0
-        v.TextureID = 10385902758728957
-    elseif v:IsA("SpecialMesh") and decalsyeeted then
-        v.TextureId=0
-    elseif v:IsA("ShirtGraphic") and decalsyeeted then
-        v.ShirtGraphic=1
-    elseif (v:IsA("Shirt") or v:IsA("Pants")) and decalsyeeted then
-        v[v.ClassName.."Template"]=1
-            end
-        end)
+    elseif v:IsA("SpecialMesh") then
+        v.TextureId = ""
+    elseif v:IsA("SurfaceAppearance") then
+        v.ColorMap, v.MetalnessMap, v.NormalMap, v.RoughnessMap = "", "", "", ""
+    elseif v:IsA("Atmosphere") then
+        v.Density, v.Haze, v.Glare = 0, 0, 0
+    elseif v:IsA("Clouds") then
+        v.Coverage, v.Density = 0, 0
+    elseif v:IsA("Sky") then
+        v.CelestialBodiesShown, v.StarCount, v.SkyboxBk, v.SkyboxDn, v.SkyboxFt, v.SkyboxLf, v.SkyboxRt, v.SkyboxUp, v.SunTextureId, v.MoonTextureId = false, 0, "", "", "", "", "", "", "", ""
+    elseif v:IsA("Sound") then
+        v.Volume = 0
+    else
+        return
+    end
+    changed += 1
+end
+
+Lighting.GlobalShadows = false
+Lighting.EnvironmentDiffuseScale, Lighting.EnvironmentSpecularScale = 0, 0
+Lighting.Ambient, Lighting.OutdoorAmbient = gray, gray
+Lighting.ColorShift_Bottom, Lighting.ColorShift_Top = Color3.new(), Color3.new()
+pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
+
+local tone = Lighting:FindFirstChild("UltraLightGray") or Instance.new("ColorCorrectionEffect")
+tone.Name, tone.Saturation, tone.Contrast, tone.Brightness, tone.TintColor = "UltraLightGray", -1, 0, 0, Color3.new(1, 1, 1)
+tone.Parent = Lighting
+
+local terrain = Workspace:FindFirstChildOfClass("Terrain")
+if terrain then
+    terrain.WaterWaveSize, terrain.WaterWaveSpeed, terrain.WaterReflectance = 0, 0, 0
+    for _, material in ipairs(Enum.Material:GetEnumItems()) do pcall(terrain.SetMaterialColor, terrain, material, gray) end
+end
+
+for i, v in ipairs(Workspace:GetDescendants()) do
+    pcall(reduce, v)
+    if i % 800 == 0 then task.wait() end
+end
+for _, v in ipairs(Lighting:GetDescendants()) do pcall(reduce, v) end
+
+state.Connections[1] = Workspace.DescendantAdded:Connect(function(v)
+    if state.Active then pcall(reduce, v) end
+end)
+tone.Enabled = true
+G.UltraLightFpsBoostStats = {Active = true, Applied = changed}
