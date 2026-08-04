@@ -1,53 +1,780 @@
-if _G.FPSB then return end _G.FPSB = true
-local S = setmetatable({}, {__index = function(s, n) local ok, c = pcall(game.GetService, game, n) if ok then rawset(s, n, c) return c end end})
-local LP = S.Players.LocalPlayer
+-- UltraLight FPS Boost - low-CPU visible/farm-safe edition
+-- Preserves farm dependencies plus the native Quest/Beli/Level/Health/Energy
+-- HUD while removing other client-only render/audio work across the DataModel.
 
-_G.NR = true
---S.RunService:Set3dRenderingEnabled(not _G.NR)
+local ENV = (getgenv and getgenv()) or _G
+local GLOBAL = _G
+local VERSION = 6
 
-S.Lighting.GlobalShadows = false S.Lighting.FogEnd = 9e9 S.Lighting.FogStart = 9e9 S.Lighting.Brightness = 1
-S.Lighting.ClockTime = 14 S.Lighting.EnvironmentDiffuseScale = 0 S.Lighting.EnvironmentSpecularScale = 0
-pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
-pcall(function() sethiddenproperty(S.Lighting, "Technology", 2) end)
-pcall(function() local t = workspace.Terrain t.WaterWaveSize = 0 t.WaterWaveSpeed = 0 t.WaterReflectance = 0 t.WaterTransparency = 0 t.Decoration = false end)
+-- Stop an older version and disconnect its legacy public connection.
+local previous = ENV.UltraLightFPSBoost or GLOBAL.UltraLightFPSBoost
+if type(previous) == "table" and type(previous.Stop) == "function" then
+    pcall(previous.Stop, false)
+end
+for _, environment in ipairs({ ENV, GLOBAL }) do
+    if environment.FPSBConn then
+        pcall(function()
+            environment.FPSBConn:Disconnect()
+        end)
+    end
+end
 
-for _, v in next, S.Lighting:GetDescendants() do pcall(function()
-    if v:IsA("Sky") then v.SkyboxBk = "" v.SkyboxDn = "" v.SkyboxFt = "" v.SkyboxLf = "" v.SkyboxRt = "" v.SkyboxUp = "" v.StarCount = 0 v.MoonSize = 0 v.SunAngularSize = 0
-    elseif v:IsA("Atmosphere") then v.Density = 0 v.Glare = 0 v.Haze = 0
-    elseif v:IsA("Clouds") then v.Enabled = false
-    elseif v:IsA("PostEffect") then v.Enabled = false end
-end) end
+local Services = setmetatable({}, {
+    __index = function(self, name)
+        local ok, service = pcall(game.GetService, game, name)
+        if ok then
+            rawset(self, name, service)
+            return service
+        end
+    end,
+})
 
-local function isNPC(p) local m = p:FindFirstAncestorWhichIsA("Model") return m and (m:FindFirstChildOfClass("Humanoid") or m.Name == "Characters" or m.Name == "Enemies" or m.Name == "NPCs") end
-local function isChr(p) for _, pl in next, S.Players:GetPlayers() do if pl.Character and p:IsDescendantOf(pl.Character) then return true end end return false end
+local Workspace = Services.Workspace
+local Lighting = Services.Lighting
+local RunService = Services.RunService
+local Players = Services.Players
+local SoundService = Services.SoundService
+local CoreGui = Services.CoreGui
+local LocalPlayer = Players and Players.LocalPlayer
 
-local function opt(v)
-    if not v or not v.Parent then return end
-    pcall(function()
-        if v:IsA("Humanoid") or v:IsA("ProximityPrompt") or v:IsA("ClickDetector") or v:IsA("Camera")
-           or v:IsA("SpawnLocation") or v:IsA("Tool") or v:IsA("BaseScript") or v:IsA("RemoteEvent")
-           or v:IsA("RemoteFunction") or v:IsA("BillboardGui") or v:IsA("ScreenGui") or v:IsA("SurfaceGui") then return end
-        if isChr(v) then return end
+local Stats = {
+    scanned = 0,
+    destroyed = 0,
+    disabled = 0,
+    errors = 0,
+}
+local Processed = setmetatable({}, { __mode = "k" })
+local Connections = {}
+local State = {
+    Active = true,
+    Version = VERSION,
+    Stats = Stats,
+    Connections = Connections,
+}
 
-        if v:IsA("ParticleEmitter") then v.Enabled = false v.Rate = 0 v.Lifetime = NumberRange.new(0, 0) return end
-        if v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Trail") or v:IsA("Beam") then v.Enabled = false return end
-        if v:IsA("Highlight") or v:IsA("SelectionBox") then v.Enabled = false return end
-        if v:IsA("Explosion") then v.Visible = false return end
-        if v:IsA("Light") then v.Enabled = false return end
-        if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 return end
-        if v:IsA("Sound") then local n = v.Name:lower() if n:find("ambient") or n:find("music") or n:find("wind") or n:find("water") or n:find("bgm") or n:find("background") or n:find("ocean") or n:find("rain") then v.Volume = 0 v.Playing = false end return end
-        
-        if v:IsA("BasePart") then
-            local isFX = v:FindFirstAncestor("FX") or v:FindFirstAncestor("Effects") or v:FindFirstAncestor("Debris")
-            if (not isFX) and (isNPC(v) or v.Name == "HumanoidRootPart" or v.Name == "Head") then return end
-            v.Transparency = 1 v.CastShadow = false v.Reflectance = 0 v.Material = Enum.Material.SmoothPlastic
-            if v:IsA("MeshPart") then pcall(function() v.TextureID = "" v.RenderFidelity = Enum.RenderFidelity.Performance end) end
+ENV.FPSB = true
+ENV.NR = false
+ENV.UltraLightFPSBoost = State
+GLOBAL.FPSB = true
+GLOBAL.NR = false
+GLOBAL.UltraLightFPSBoost = State
+
+-- Keep only these branches from PlayerGui.Main. Matching is case-insensitive;
+-- aliases cover small UI-name differences between Blox Fruits versions.
+local allowedMainHudNames = {
+    quest = true,
+    beli = true,
+    money = true,
+    cash = true,
+    level = true,
+    lvl = true,
+    health = true,
+    hp = true,
+    energy = true,
+    stamina = true,
+}
+local OriginalGuiVisibility = setmetatable({}, { __mode = "k" })
+local PendingMainPrunes = setmetatable({}, { __mode = "k" })
+local WatchedMainGuis = setmetatable({}, { __mode = "k" })
+local WatchedPlayerGuis = setmetatable({}, { __mode = "k" })
+local neutralize
+
+local function isAllowedMainHudName(name)
+    local normalized = string.lower(name):gsub("[%s_%-]", "")
+    return allowedMainHudNames[normalized] == true
+end
+
+local function restoreGuiVisibility(instance)
+    local original = OriginalGuiVisibility[instance]
+    if original ~= nil then
+        instance.Visible = original
+        OriginalGuiVisibility[instance] = nil
+    end
+end
+
+local function pruneMainGuiBranch(instance, insideAllowedBranch)
+    local allowedBranch = insideAllowedBranch or isAllowedMainHudName(instance.Name)
+    local keepBranch = allowedBranch
+
+    for _, child in ipairs(instance:GetChildren()) do
+        if pruneMainGuiBranch(child, allowedBranch) then
+            keepBranch = true
+        end
+    end
+
+    if instance:IsA("GuiObject") then
+        if keepBranch then
+            restoreGuiVisibility(instance)
+        else
+            if OriginalGuiVisibility[instance] == nil then
+                OriginalGuiVisibility[instance] = instance.Visible
+            end
+            instance.Visible = false
+        end
+    end
+
+    return keepBranch
+end
+
+local function pruneMainGui(mainGui)
+    if not State.Active or not mainGui or not mainGui.Parent then
+        return
+    end
+
+    local ok = pcall(pruneMainGuiBranch, mainGui, false)
+    if not ok then
+        Stats.errors = Stats.errors + 1
+    end
+end
+
+local function pruneMainGuiAddition(mainGui, instance)
+    local insideAllowedBranch = false
+    local ancestor = instance.Parent
+
+    while ancestor and ancestor ~= mainGui do
+        if isAllowedMainHudName(ancestor.Name) then
+            insideAllowedBranch = true
+            break
+        end
+        ancestor = ancestor.Parent
+    end
+
+    if not pruneMainGuiBranch(instance, insideAllowedBranch) then
+        return
+    end
+
+    -- If an allowed HUD node was inserted under an ancestor hidden earlier,
+    -- restore only that ancestor path instead of rescanning all of Main.
+    ancestor = instance.Parent
+    while ancestor do
+        if ancestor:IsA("GuiObject") then
+            restoreGuiVisibility(ancestor)
+        end
+        if ancestor == mainGui then
+            break
+        end
+        ancestor = ancestor.Parent
+    end
+end
+
+local function scheduleMainGuiPrune(mainGui, instance)
+    if not State.Active or not instance then
+        return
+    end
+
+    local pending = PendingMainPrunes[mainGui]
+    if not pending then
+        pending = {
+            queued = false,
+            nodes = setmetatable({}, { __mode = "k" }),
+        }
+        PendingMainPrunes[mainGui] = pending
+    end
+
+    pending.nodes[instance] = true
+    if pending.queued then
+        return
+    end
+
+    pending.queued = true
+    task.defer(function()
+        -- Swap buffers so additions arriving during this flush are handled by
+        -- the next deferred batch instead of being lost or rescanned.
+        local nodes = pending.nodes
+        pending.nodes = setmetatable({}, { __mode = "k" })
+        pending.queued = false
+
+        if not State.Active or not mainGui.Parent then
+            return
+        end
+
+        local ok = pcall(function()
+            for node in pairs(nodes) do
+                if node.Parent and node:IsDescendantOf(mainGui) then
+                    local covered = false
+                    local ancestor = node.Parent
+
+                    -- DescendantAdded may report a whole inserted subtree.
+                    -- Process only its highest queued root once.
+                    while ancestor and ancestor ~= mainGui do
+                        if nodes[ancestor] then
+                            covered = true
+                            break
+                        end
+                        ancestor = ancestor.Parent
+                    end
+
+                    if not covered then
+                        pruneMainGuiAddition(mainGui, node)
+                    end
+                end
+            end
+        end)
+
+        if not ok then
+            Stats.errors = Stats.errors + 1
         end
     end)
 end
 
-local d = workspace:GetDescendants() for i = 1, #d do opt(d[i]) if i % 300 == 0 then task.wait() end end
-for _, v in next, S.ReplicatedStorage:GetDescendants() do pcall(function() if v:IsA("ParticleEmitter") then v.Enabled = false v.Rate = 0 v.Lifetime = NumberRange.new(0,0) elseif v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Trail") or v:IsA("Beam") then v.Enabled = false end end) end
+-- Existing instances of these classes are safe to delete only in active render
+-- containers and only when they do not belong to a Humanoid model or Tool.
+local disposableVisualClasses = {
+    Atmosphere = true,
+    Beam = true,
+    BloomEffect = true,
+    BlurEffect = true,
+    Clouds = true,
+    ColorCorrectionEffect = true,
+    Decal = true,
+    DepthOfFieldEffect = true,
+    Fire = true,
+    Highlight = true,
+    ParticleEmitter = true,
+    SelectionBox = true,
+    Smoke = true,
+    Sparkles = true,
+    SunRaysEffect = true,
+    SurfaceAppearance = true,
+    Texture = true,
+    Trail = true,
+}
 
-if _G.FPSBConn then pcall(function() _G.FPSBConn:Disconnect() end) end
-_G.FPSBConn = workspace.DescendantAdded:Connect(function(v) task.defer(opt, v) end)
+local function isInside(root, instance)
+    return root and instance ~= root and instance:IsDescendantOf(root)
+end
+
+local function belongsToActorOrTool(instance)
+    if instance:FindFirstAncestorWhichIsA("Tool") then
+        return true
+    end
+
+    local parent = instance.Parent
+    while parent and parent ~= Workspace do
+        if parent:IsA("Model") and parent:FindFirstChildOfClass("Humanoid") then
+            return true
+        end
+        parent = parent.Parent
+    end
+
+    return false
+end
+
+local function canDestroyVisual(instance, className, destructivePass)
+    if not destructivePass or not disposableVisualClasses[className] then
+        return false
+    end
+    if not (isInside(Workspace, instance) or isInside(Lighting, instance)) then
+        return false
+    end
+    return not belongsToActorOrTool(instance)
+end
+
+local function disableEnabled(instance)
+    instance.Enabled = false
+end
+
+local function disableParticle(instance)
+    instance.Enabled = false
+    instance.Rate = 0
+    instance.Lifetime = NumberRange.new(0)
+end
+
+local function disableTrail(instance)
+    instance.Enabled = false
+    instance.Lifetime = 0
+end
+
+local function disableBeam(instance)
+    instance.Enabled = false
+    instance.Texture = ""
+    instance.Width0 = 0
+    instance.Width1 = 0
+end
+
+local function disableAtmosphere(instance)
+    instance.Density = 0
+    instance.Glare = 0
+    instance.Haze = 0
+end
+
+local function disableClouds(instance)
+    instance.Enabled = false
+    instance.Cover = 0
+    instance.Density = 0
+end
+
+local function simplifySky(instance)
+    -- Keep the background so the client never becomes a black/white screen.
+    instance.CelestialBodiesShown = false
+    instance.StarCount = 0
+end
+
+local function disableLight(instance)
+    instance.Enabled = false
+    instance.Brightness = 0
+    instance.Shadows = false
+end
+
+local function hideAdornment(instance)
+    instance.Enabled = false
+end
+
+local function hideExplosion(instance)
+    instance.Visible = false
+end
+
+local function hideTexture(instance)
+    instance.Transparency = 1
+end
+
+local function stripSurfaceAppearance(instance)
+    instance.ColorMap = ""
+    instance.MetalnessMap = ""
+    instance.NormalMap = ""
+    instance.RoughnessMap = ""
+    instance.AlphaMode = Enum.AlphaMode.Overlay
+end
+
+local function hideBasePart(instance)
+    -- This does not change Transparency/collision/touch/query/CFrame values used
+    -- by the game and farm.
+    instance.LocalTransparencyModifier = 1
+    instance.CastShadow = false
+    instance.Reflectance = 0
+end
+
+local function hideMeshPart(instance)
+    hideBasePart(instance)
+    instance.TextureID = ""
+    instance.RenderFidelity = Enum.RenderFidelity.Performance
+end
+
+local function hideUnion(instance)
+    hideBasePart(instance)
+    instance.RenderFidelity = Enum.RenderFidelity.Performance
+end
+
+local function stripSpecialMesh(instance)
+    instance.TextureId = ""
+end
+
+local function hideForceField(instance)
+    instance.Visible = false
+end
+
+local function disableWorldGui(instance)
+    instance.Enabled = false
+end
+
+local function configureScreenGui(instance)
+    local parent = instance.Parent
+    local shouldKeep = instance.Name == "Main"
+        and parent
+        and parent.ClassName == "PlayerGui"
+    instance.Enabled = shouldKeep
+
+    if shouldKeep then
+        State.MainScreenGui = instance
+        pruneMainGui(instance)
+
+        if not WatchedMainGuis[instance] then
+            WatchedMainGuis[instance] = true
+            local connection = instance.DescendantAdded:Connect(function(added)
+                neutralize(added, false)
+                scheduleMainGuiPrune(instance, added)
+            end)
+            Connections[#Connections + 1] = connection
+        end
+    end
+end
+
+local function disableVideo(instance)
+    instance.Playing = false
+    instance.Volume = 0
+    instance.Visible = false
+end
+
+local function hideViewport(instance)
+    instance.Visible = false
+end
+
+local function muteSound(instance)
+    instance.Volume = 0
+    instance.Looped = false
+    instance:Stop()
+end
+
+local function muteSoundGroup(instance)
+    instance.Volume = 0
+end
+
+-- Direct ClassName dispatch avoids a long IsA chain for every Folder, Model,
+-- attachment and UI object created while farming.
+local classHandlers = {
+    ParticleEmitter = disableParticle,
+    Trail = disableTrail,
+    Beam = disableBeam,
+    Fire = disableEnabled,
+    Smoke = disableEnabled,
+    Sparkles = disableEnabled,
+    BloomEffect = disableEnabled,
+    BlurEffect = disableEnabled,
+    ColorCorrectionEffect = disableEnabled,
+    DepthOfFieldEffect = disableEnabled,
+    SunRaysEffect = disableEnabled,
+    Atmosphere = disableAtmosphere,
+    Clouds = disableClouds,
+    Sky = simplifySky,
+    PointLight = disableLight,
+    SpotLight = disableLight,
+    SurfaceLight = disableLight,
+    Highlight = hideAdornment,
+    SelectionBox = hideAdornment,
+    Explosion = hideExplosion,
+    Decal = hideTexture,
+    Texture = hideTexture,
+    SurfaceAppearance = stripSurfaceAppearance,
+    Part = hideBasePart,
+    WedgePart = hideBasePart,
+    CornerWedgePart = hideBasePart,
+    TrussPart = hideBasePart,
+    Seat = hideBasePart,
+    VehicleSeat = hideBasePart,
+    SpawnLocation = hideBasePart,
+    MeshPart = hideMeshPart,
+    UnionOperation = hideUnion,
+    SpecialMesh = stripSpecialMesh,
+    ForceField = hideForceField,
+    BillboardGui = disableWorldGui,
+    SurfaceGui = disableWorldGui,
+    ScreenGui = configureScreenGui,
+    VideoFrame = disableVideo,
+    ViewportFrame = hideViewport,
+    Sound = muteSound,
+    SoundGroup = muteSoundGroup,
+}
+
+-- Common non-render objects can return immediately without any IsA call.
+local ignoredClasses = {
+    Accessory = true,
+    Animation = true,
+    Animator = true,
+    Attachment = true,
+    BindableEvent = true,
+    BindableFunction = true,
+    BoolValue = true,
+    Camera = true,
+    CFrameValue = true,
+    ClickDetector = true,
+    Configuration = true,
+    Folder = true,
+    Frame = true,
+    Humanoid = true,
+    ImageButton = true,
+    ImageLabel = true,
+    IntValue = true,
+    LocalScript = true,
+    Model = true,
+    ModuleScript = true,
+    Motor6D = true,
+    NumberValue = true,
+    ObjectValue = true,
+    ProximityPrompt = true,
+    RemoteEvent = true,
+    RemoteFunction = true,
+    Script = true,
+    StringValue = true,
+    TextButton = true,
+    TextLabel = true,
+    TextBox = true,
+    Tool = true,
+    UICorner = true,
+    UIGradient = true,
+    UIListLayout = true,
+    UIPadding = true,
+    UIScale = true,
+    UIStroke = true,
+    Vector3Value = true,
+    Weld = true,
+    WeldConstraint = true,
+}
+
+-- Cache inheritance fallback once per uncommon ClassName. A private sentinel is
+-- used because nil cannot be stored as a cached "not visual" result.
+local NO_HANDLER = {}
+local fallbackClassHandlers = {}
+
+local function resolveFallbackHandler(instance, className)
+    local cached = fallbackClassHandlers[className]
+    if cached ~= nil then
+        return cached ~= NO_HANDLER and cached or nil
+    end
+
+    local ok, handler = pcall(function()
+        if instance:IsA("BasePart") then
+            return hideBasePart
+        elseif instance:IsA("PostEffect") then
+            return disableEnabled
+        elseif instance:IsA("Light") then
+            return disableLight
+        end
+    end)
+
+    if not ok then
+        Stats.errors = Stats.errors + 1
+        return nil
+    end
+
+    fallbackClassHandlers[className] = handler or NO_HANDLER
+    return handler
+end
+
+neutralize = function(instance, destructivePass)
+    if not State.Active or not instance or not instance.Parent or Processed[instance] then
+        return
+    end
+
+    local className = instance.ClassName
+    local handler = classHandlers[className]
+    if not handler then
+        -- Hot path: common gameplay/data objects skip weak-table writes, stats,
+        -- pcall and inheritance checks entirely.
+        if ignoredClasses[className] then
+            return
+        end
+
+        handler = resolveFallbackHandler(instance, className)
+        if not handler then
+            return
+        end
+    end
+
+    Processed[instance] = true
+    Stats.scanned = Stats.scanned + 1
+
+    local action = 0
+    local ok = pcall(function()
+        if canDestroyVisual(instance, className, destructivePass) then
+            instance:Destroy()
+            action = 2
+            return
+        end
+
+        handler(instance)
+        action = 1
+    end)
+
+    if not ok then
+        Stats.errors = Stats.errors + 1
+        Processed[instance] = nil -- allow a later reparent/scan to retry
+    elseif action == 2 then
+        Stats.destroyed = Stats.destroyed + 1
+    elseif action == 1 then
+        Stats.disabled = Stats.disabled + 1
+    end
+end
+
+local function safeSet(instance, property, value)
+    pcall(function()
+        instance[property] = value
+    end)
+end
+
+local function applyGlobalSettings()
+    pcall(function()
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    end)
+    pcall(function()
+        settings().Rendering.EditQualityLevel = Enum.QualityLevel.Level01
+    end)
+    pcall(function()
+        if sethiddenproperty then
+            sethiddenproperty(Lighting, "Technology", Enum.Technology.Compatibility)
+        end
+    end)
+
+    safeSet(Lighting, "GlobalShadows", false)
+    safeSet(Lighting, "Brightness", 1)
+    safeSet(Lighting, "EnvironmentDiffuseScale", 0)
+    safeSet(Lighting, "EnvironmentSpecularScale", 0)
+    safeSet(Lighting, "ExposureCompensation", 0)
+    safeSet(Lighting, "FogStart", 9e9)
+    safeSet(Lighting, "FogEnd", 9e9)
+    safeSet(Lighting, "ShadowSoftness", 0)
+
+    local terrain = Workspace.Terrain
+    safeSet(terrain, "WaterWaveSize", 0)
+    safeSet(terrain, "WaterWaveSpeed", 0)
+    safeSet(terrain, "WaterReflectance", 0)
+    safeSet(terrain, "WaterTransparency", 1)
+    safeSet(terrain, "Decoration", false)
+    safeSet(Workspace, "GlobalWind", Vector3.new(0, 0, 0))
+
+    safeSet(SoundService, "AmbientReverb", Enum.ReverbType.NoReverb)
+    safeSet(SoundService, "DopplerScale", 0)
+
+    pcall(function()
+        Services.StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+    end)
+    pcall(function()
+        RunService:Set3dRenderingEnabled(true)
+    end)
+end
+
+local function track(signal, callback)
+    local connection = signal:Connect(callback)
+    Connections[#Connections + 1] = connection
+    return connection
+end
+
+function State.Stop(restore3D)
+    State.Active = false
+    for index = #Connections, 1, -1 do
+        pcall(function()
+            Connections[index]:Disconnect()
+        end)
+        Connections[index] = nil
+    end
+
+    if ENV.UltraLightFPSBoost == State then
+        ENV.FPSBConn = nil
+        ENV.FPSB = false
+        ENV.UltraLightFPSBoost = nil
+    end
+    if GLOBAL.UltraLightFPSBoost == State then
+        GLOBAL.FPSBConn = nil
+        GLOBAL.FPSB = false
+        GLOBAL.UltraLightFPSBoost = nil
+    end
+
+    if restore3D then
+        pcall(function()
+            RunService:Set3dRenderingEnabled(true)
+        end)
+        pcall(function()
+            Services.StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, true)
+        end)
+    end
+end
+
+applyGlobalSettings()
+
+-- Prevent the farm's optional +/-infinite exposure from making the client
+-- black or white. Event-driven: no Heartbeat/RenderStepped loop.
+State.ExposureConnection = track(
+    Lighting:GetPropertyChangedSignal("ExposureCompensation"),
+    function()
+        if State.Active and Lighting.ExposureCompensation ~= 0 then
+            safeSet(Lighting, "ExposureCompensation", 0)
+        end
+    end
+)
+
+local function scanChildren(root)
+    if not root or not State.Active then
+        return
+    end
+
+    local ok, children = pcall(root.GetChildren, root)
+    if not ok then
+        Stats.errors = Stats.errors + 1
+        return
+    end
+
+    for index = 1, #children do
+        neutralize(children[index], false)
+    end
+end
+
+local function attachPlayerGui(playerGui)
+    if not playerGui or WatchedPlayerGuis[playerGui] then
+        return
+    end
+
+    WatchedPlayerGuis[playerGui] = true
+    State.PlayerGuiConnection = track(playerGui.ChildAdded, function(instance)
+        -- A disabled non-Main ScreenGui suppresses its whole subtree. The kept
+        -- Main ScreenGui installs its own incremental descendant watcher.
+        neutralize(instance, false)
+    end)
+    scanChildren(playerGui)
+end
+
+-- Listen only where client render/audio work can actually become active. The
+-- old DataModel-wide listener also ran for every Remote, Value and replicated
+-- asset created anywhere in the game, which caused unnecessary CPU usage.
+State.WorkspaceConnection = track(Workspace.DescendantAdded, function(instance)
+    neutralize(instance, false)
+end)
+State.Connection = State.WorkspaceConnection -- compatibility with old loaders
+ENV.FPSBConn = State.Connection
+GLOBAL.FPSBConn = State.Connection
+
+State.LightingConnection = track(Lighting.DescendantAdded, function(instance)
+    neutralize(instance, false)
+end)
+State.SoundConnection = track(SoundService.DescendantAdded, function(instance)
+    neutralize(instance, false)
+end)
+
+if CoreGui then
+    State.CoreGuiConnection = track(CoreGui.ChildAdded, function(instance)
+        neutralize(instance, false)
+    end)
+    scanChildren(CoreGui)
+end
+
+if LocalPlayer then
+    local ok, playerGui = pcall(LocalPlayer.FindFirstChildOfClass, LocalPlayer, "PlayerGui")
+    if ok then
+        attachPlayerGui(playerGui)
+    end
+
+    State.PlayerConnection = track(LocalPlayer.ChildAdded, function(instance)
+        if instance.ClassName == "PlayerGui" then
+            attachPlayerGui(instance)
+        end
+    end)
+end
+
+-- The initial pass is limited to active render/audio containers. Replicated
+-- assets are handled later when they enter one of these roots. A small timed
+-- yield caps startup CPU instead of monopolizing consecutive scheduler slices.
+local SCAN_BATCH_SIZE = 200
+local SCAN_PAUSE_SECONDS = 0.03
+
+local function scanDescendants(root, destructivePass)
+    if not root or not State.Active then
+        return
+    end
+
+    local ok, descendants = pcall(root.GetDescendants, root)
+    if not ok then
+        Stats.errors = Stats.errors + 1
+        return
+    end
+
+    local batchCount = 0
+    for index = 1, #descendants do
+        if not State.Active then
+            return
+        end
+
+        neutralize(descendants[index], destructivePass)
+        batchCount = batchCount + 1
+        if batchCount >= SCAN_BATCH_SIZE then
+            batchCount = 0
+            task.wait(SCAN_PAUSE_SECONDS)
+        end
+    end
+end
+
+task.spawn(function()
+    scanDescendants(Workspace, true)
+    task.wait(SCAN_PAUSE_SECONDS)
+    scanDescendants(Lighting, true)
+    task.wait(SCAN_PAUSE_SECONDS)
+    scanDescendants(SoundService, false)
+end)
+
