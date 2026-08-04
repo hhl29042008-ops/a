@@ -1,78 +1,53 @@
-local G = (getgenv and getgenv()) or _G
-local old = G.UltraLightFpsBoost
-if old then
-    old.Active = false
-    for _, c in ipairs(old.Connections) do pcall(function() c:Disconnect() end) end
-end
+if _G.FPSB then return end _G.FPSB = true
+local S = setmetatable({}, {__index = function(s, n) local ok, c = pcall(game.GetService, game, n) if ok then rawset(s, n, c) return c end end})
+local LP = S.Players.LocalPlayer
 
-local state = {Active = true, Connections = {}}
-G.UltraLightFpsBoost = state
+_G.NR = true
+S.RunService:Set3dRenderingEnabled(not _G.NR)
 
-local RunService = game:GetService("RunService")
+S.Lighting.GlobalShadows = false S.Lighting.FogEnd = 9e9 S.Lighting.FogStart = 9e9 S.Lighting.Brightness = 1
+S.Lighting.ClockTime = 14 S.Lighting.EnvironmentDiffuseScale = 0 S.Lighting.EnvironmentSpecularScale = 0
 pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
-pcall(function() game:GetService("SoundService").Volume = 0 end)
-pcall(function() game:GetService("SoundService").AmbientReverb = Enum.ReverbType.NoReverb end)
+pcall(function() sethiddenproperty(S.Lighting, "Technology", 2) end)
+pcall(function() local t = workspace.Terrain t.WaterWaveSize = 0 t.WaterWaveSpeed = 0 t.WaterReflectance = 0 t.WaterTransparency = 0 t.Decoration = false end)
 
-local Lighting = game:GetService("Lighting")
-local Workspace = game:GetService("Workspace")
-local gray = Color3.fromRGB(112, 112, 112)
-local changed = 0
+for _, v in next, S.Lighting:GetDescendants() do pcall(function()
+    if v:IsA("Sky") then v.SkyboxBk = "" v.SkyboxDn = "" v.SkyboxFt = "" v.SkyboxLf = "" v.SkyboxRt = "" v.SkyboxUp = "" v.StarCount = 0 v.MoonSize = 0 v.SunAngularSize = 0
+    elseif v:IsA("Atmosphere") then v.Density = 0 v.Glare = 0 v.Haze = 0
+    elseif v:IsA("Clouds") then v.Enabled = false
+    elseif v:IsA("PostEffect") then v.Enabled = false end
+end) end
 
-local function reduce(v)
-    if v:IsA("BasePart") then
-        v.CastShadow, v.Reflectance, v.Material, v.Color, v.LocalTransparencyModifier = false, 0, Enum.Material.SmoothPlastic, gray, 1
-        if v:IsA("MeshPart") then v.TextureID = "" end
-    elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-        v.Enabled = false
-        v:Clear()
-    elseif v:IsA("Beam") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") or v:IsA("Light") or v:IsA("Highlight") or v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
-        v.Enabled = false
-    elseif v:IsA("PostEffect") then
-        if v.Name ~= "UltraLightGray" then v.Enabled = false end
-    elseif v:IsA("Decal") or v:IsA("Texture") then
-        v.Transparency = 1
-    elseif v:IsA("SpecialMesh") then
-        v.TextureId = ""
-    elseif v:IsA("SurfaceAppearance") then
-        v.ColorMap, v.MetalnessMap, v.NormalMap, v.RoughnessMap = "", "", "", ""
-    elseif v:IsA("Atmosphere") then
-        v.Density, v.Haze, v.Glare = 0, 0, 0
-    elseif v:IsA("Clouds") then
-        v.Coverage, v.Density = 0, 0
-    elseif v:IsA("Sky") then
-        v.CelestialBodiesShown, v.StarCount, v.SkyboxBk, v.SkyboxDn, v.SkyboxFt, v.SkyboxLf, v.SkyboxRt, v.SkyboxUp, v.SunTextureId, v.MoonTextureId = false, 0, "", "", "", "", "", "", "", ""
-    elseif v:IsA("Sound") then
-        v.Volume = 0
-    else
-        return
-    end
-    changed += 1
+local function isNPC(p) local m = p:FindFirstAncestorWhichIsA("Model") return m and (m:FindFirstChildOfClass("Humanoid") or m.Name == "Characters" or m.Name == "Enemies" or m.Name == "NPCs") end
+local function isChr(p) for _, pl in next, S.Players:GetPlayers() do if pl.Character and p:IsDescendantOf(pl.Character) then return true end end return false end
+
+local function opt(v)
+    if not v or not v.Parent then return end
+    pcall(function()
+        if v:IsA("Humanoid") or v:IsA("ProximityPrompt") or v:IsA("ClickDetector") or v:IsA("Camera")
+           or v:IsA("SpawnLocation") or v:IsA("Tool") or v:IsA("BaseScript") or v:IsA("RemoteEvent")
+           or v:IsA("RemoteFunction") or v:IsA("BillboardGui") or v:IsA("ScreenGui") or v:IsA("SurfaceGui") then return end
+        if isChr(v) then return end
+
+        if v:IsA("ParticleEmitter") then v.Enabled = false v.Rate = 0 v.Lifetime = NumberRange.new(0, 0) return end
+        if v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Trail") or v:IsA("Beam") then v.Enabled = false return end
+        if v:IsA("Highlight") or v:IsA("SelectionBox") then v.Enabled = false return end
+        if v:IsA("Explosion") then v.Visible = false return end
+        if v:IsA("Light") then v.Enabled = false return end
+        if v:IsA("Decal") or v:IsA("Texture") then v.Transparency = 1 return end
+        if v:IsA("Sound") then local n = v.Name:lower() if n:find("ambient") or n:find("music") or n:find("wind") or n:find("water") or n:find("bgm") or n:find("background") or n:find("ocean") or n:find("rain") then v.Volume = 0 v.Playing = false end return end
+        
+        if v:IsA("BasePart") then
+            local isFX = v:FindFirstAncestor("FX") or v:FindFirstAncestor("Effects") or v:FindFirstAncestor("Debris")
+            if (not isFX) and (isNPC(v) or v.Name == "HumanoidRootPart" or v.Name == "Head") then return end
+            v.Transparency = 1 v.CastShadow = false v.Reflectance = 0 v.Material = Enum.Material.SmoothPlastic
+            if v:IsA("MeshPart") then pcall(function() v.TextureID = "" v.RenderFidelity = Enum.RenderFidelity.Performance end) end
+        end
+    end)
 end
 
-Lighting.GlobalShadows = false
-Lighting.EnvironmentDiffuseScale, Lighting.EnvironmentSpecularScale = 0, 0
-Lighting.Ambient, Lighting.OutdoorAmbient = gray, gray
-Lighting.ColorShift_Bottom, Lighting.ColorShift_Top = Color3.new(), Color3.new()
-pcall(function() Lighting.Technology = Enum.Technology.Compatibility end)
+local d = workspace:GetDescendants() for i = 1, #d do opt(d[i]) if i % 300 == 0 then task.wait() end end
+for _, v in next, S.ReplicatedStorage:GetDescendants() do pcall(function() if v:IsA("ParticleEmitter") then v.Enabled = false v.Rate = 0 v.Lifetime = NumberRange.new(0,0) elseif v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Trail") or v:IsA("Beam") then v.Enabled = false end end) end
 
-local tone = Lighting:FindFirstChild("UltraLightGray") or Instance.new("ColorCorrectionEffect")
-tone.Name, tone.Saturation, tone.Contrast, tone.Brightness, tone.TintColor = "UltraLightGray", -1, 0, 0, Color3.new(1, 1, 1)
-tone.Parent = Lighting
-
-local terrain = Workspace:FindFirstChildOfClass("Terrain")
-if terrain then
-    terrain.WaterWaveSize, terrain.WaterWaveSpeed, terrain.WaterReflectance = 0, 0, 0
-    for _, material in ipairs(Enum.Material:GetEnumItems()) do pcall(terrain.SetMaterialColor, terrain, material, gray) end
-end
-
-for i, v in ipairs(Workspace:GetDescendants()) do
-    pcall(reduce, v)
-    if i % 800 == 0 then task.wait() end
-end
-for _, v in ipairs(Lighting:GetDescendants()) do pcall(reduce, v) end
-
-state.Connections[1] = Workspace.DescendantAdded:Connect(function(v)
-    if state.Active then pcall(reduce, v) end
-end)
-tone.Enabled = true
-G.UltraLightFpsBoostStats = {Active = true, Applied = changed}
+if _G.FPSBConn then pcall(function() _G.FPSBConn:Disconnect() end) end
+_G.FPSBConn = workspace.DescendantAdded:Connect(function(v) task.defer(opt, v) end)
