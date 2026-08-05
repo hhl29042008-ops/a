@@ -3,7 +3,7 @@ local S = setmetatable({}, {__index = function(s, n) local ok, c = pcall(game.Ge
 local LP = S.Players.LocalPlayer
 
 _G.NR = true
-S.RunService:Set3dRenderingEnabled(not _G.NR)
+--S.RunService:Set3dRenderingEnabled(not _G.NR)
 
 S.Lighting.GlobalShadows = false S.Lighting.FogEnd = 9e9 S.Lighting.FogStart = 9e9 S.Lighting.Brightness = 1
 S.Lighting.ClockTime = 14 S.Lighting.EnvironmentDiffuseScale = 0 S.Lighting.EnvironmentSpecularScale = 0
