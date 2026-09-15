@@ -1,4 +1,5 @@
 local Player, TeamStartedAt = game:GetService("Players").LocalPlayer, os.clock()
+StartTime = os.time()
 loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/4f3f0a4f4470fc5452f74ca11bc64957.lua"))()
  os.clock() - TeamStartedAt >= 120
     if game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("Main (minimal)") then
