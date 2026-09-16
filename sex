@@ -1,2 +1,11 @@
-
-repeat task.wait(0.01) pcall(function() loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/4f3f0a4f4470fc5452f74ca11bc64957.lua"))() end) until getgenv().ScriptLoaded 
+task.spawn(function()
+  local a = os.clock()
+  repeat wait(1) until getgenv().ScriptLoaded or os.clock() - a >= 240
+  if not getgenv().ScriptLoaded then
+    while true do
+      pcall(function() game:GetService("TeleportService"):Teleport(game.PlaceId, game.Players.LocalPlayer) end)
+      task.wait(5)
+    end
+  end
+end)
+loadstring(game:HttpGet("https://api.luarmor.net/files/v4/loaders/4f3f0a4f4470fc5452f74ca11bc64957.lua"))() 
