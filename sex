@@ -3,7 +3,7 @@ task.spawn(function()
   repeat wait(1) until getgenv().ScriptLoaded or os.clock() - a >= 240
   if not getgenv().ScriptLoaded then
     while true do
-      pcall(function() game:GetService("TeleportService"):Teleport(game.PlaceId) end)
+      pcall(function() game:GetService("TeleportService"):TeleportReconnect()end)
       task.wait(5)
     end
   end
